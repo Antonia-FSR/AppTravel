@@ -1,0 +1,8 @@
+{
+  "name": "Fondo India 2027",
+  "description": "Aplicación para registrar ahorros de viaje a la India con panel de progreso, categorías y almacenamiento local.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
