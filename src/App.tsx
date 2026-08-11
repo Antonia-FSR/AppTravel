@@ -8,27 +8,47 @@ import { Transaction, Category, PaymentMethod, SavingsData, Debtor } from './typ
 import { Plane, MapPin, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { exportDataToExcel } from './utils';
-
-const STORAGE_KEY = 'india_trip_savings_data';
+import { db } from './lib/firebase';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const DEFAULT_GOAL = 3000000;
 
 export default function App() {
-  const [data, setData] = useState<SavingsData>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse savings data');
-      }
-    }
-    return { goal: DEFAULT_GOAL, transactions: [], debtors: [] };
-  });
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<SavingsData>({ goal: DEFAULT_GOAL, transactions: [], debtors: [] });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) {
+        setData(prev => ({ ...prev, goal: doc.data().goal }));
+      } else {
+        setDoc(doc.ref, { goal: DEFAULT_GOAL });
+      }
+    });
+
+    const unsubTx = onSnapshot(collection(db, 'transactions'), (snapshot) => {
+      const txs = snapshot.docs.map(doc => doc.data() as Transaction);
+      txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setData(prev => ({ ...prev, transactions: txs }));
+      setLoading(false);
+    });
+
+    const unsubDebtors = onSnapshot(collection(db, 'debtors'), (snapshot) => {
+      const dbtrs = snapshot.docs.map(doc => doc.data() as Debtor);
+      dbtrs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setData(prev => ({ ...prev, debtors: dbtrs }));
+    });
+
+    return () => {
+      unsubSettings();
+      unsubTx();
+      unsubDebtors();
+    };
+  }, []);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-orange-500 font-medium">Conectando a la base de datos...</div>;
+  }
 
   const debtors = data.debtors || [];
 
@@ -36,11 +56,11 @@ export default function App() {
   const totalEfectivo = data.transactions.filter(tx => tx.paymentMethod === 'Efectivo').reduce((sum, tx) => sum + (tx.type === 'expense' ? -tx.amount : tx.amount), 0) + debtors.filter(d => d.status === 'paid' && d.paymentMethod === 'Efectivo').reduce((sum, d) => sum + d.amount, 0);
   const totalTransferencia = data.transactions.filter(tx => tx.paymentMethod === 'Transferencia').reduce((sum, tx) => sum + (tx.type === 'expense' ? -tx.amount : tx.amount), 0) + debtors.filter(d => d.status === 'paid' && d.paymentMethod === 'Transferencia').reduce((sum, d) => sum + d.amount, 0);
 
-  const handleUpdateGoal = (newGoal: number) => {
-    setData((prev) => ({ ...prev, goal: newGoal }));
+  const handleUpdateGoal = async (newGoal: number) => {
+    await setDoc(doc(db, 'settings', 'global'), { goal: newGoal }, { merge: true });
   };
 
-  const handleAddTransaction = (
+  const handleAddTransaction = async (
     type: 'income' | 'expense',
     amount: number,
     category: Category,
@@ -50,8 +70,9 @@ export default function App() {
     quantity?: number,
     quantityUnit?: 'Unidades' | 'Kilogramos'
   ) => {
+    const id = crypto.randomUUID();
     const newTx: Transaction = {
-      id: crypto.randomUUID(),
+      id,
       type,
       amount,
       category,
@@ -62,65 +83,50 @@ export default function App() {
       note,
       date: new Date().toISOString(),
     };
-
-    setData((prev) => ({
-      ...prev,
-      transactions: [newTx, ...prev.transactions],
-    }));
+    await setDoc(doc(db, 'transactions', id), {
+      ...newTx,
+      createdAt: new Date().toISOString()
+    });
   };
 
-  const handleUpdateTransaction = (id: string, updatedTx: Partial<Transaction>) => {
-    setData((prev) => ({
-      ...prev,
-      transactions: prev.transactions.map(tx => tx.id === id ? { ...tx, ...updatedTx } : tx)
-    }));
+  const handleUpdateTransaction = async (id: string, updatedTx: Partial<Transaction>) => {
+    await updateDoc(doc(db, 'transactions', id), updatedTx);
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      transactions: prev.transactions.filter(tx => tx.id !== id)
-    }));
+  const handleDeleteTransaction = async (id: string) => {
+    await deleteDoc(doc(db, 'transactions', id));
   };
 
-  const handleAddDebtor = (name: string, amount: number, note: string) => {
+  const handleAddDebtor = async (name: string, amount: number, note: string) => {
+    const id = crypto.randomUUID();
     const newDebtor: Debtor = {
-      id: crypto.randomUUID(),
+      id,
       name,
       amount,
       note,
       status: 'pending',
       date: new Date().toISOString(),
     };
-    setData((prev) => ({
-      ...prev,
-      debtors: [newDebtor, ...(prev.debtors || [])],
-    }));
+    await setDoc(doc(db, 'debtors', id), {
+      ...newDebtor,
+      createdAt: new Date().toISOString()
+    });
   };
 
-  const handlePayDebtor = (id: string, paymentMethod: PaymentMethod) => {
-    setData((prev) => ({
-      ...prev,
-      debtors: (prev.debtors || []).map(d => 
-        d.id === id 
-          ? { ...d, status: 'paid', paymentMethod, paidDate: new Date().toISOString() } 
-          : d
-      )
-    }));
+  const handlePayDebtor = async (id: string, paymentMethod: PaymentMethod) => {
+    await updateDoc(doc(db, 'debtors', id), {
+      status: 'paid',
+      paymentMethod,
+      paidDate: new Date().toISOString()
+    });
   };
 
-  const handleUpdateDebtor = (id: string, updatedDebtor: Partial<Debtor>) => {
-    setData((prev) => ({
-      ...prev,
-      debtors: (prev.debtors || []).map(d => d.id === id ? { ...d, ...updatedDebtor } : d)
-    }));
+  const handleUpdateDebtor = async (id: string, updatedDebtor: Partial<Debtor>) => {
+    await updateDoc(doc(db, 'debtors', id), updatedDebtor);
   };
 
-  const handleDeleteDebtor = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      debtors: (prev.debtors || []).filter(d => d.id !== id)
-    }));
+  const handleDeleteDebtor = async (id: string) => {
+    await deleteDoc(doc(db, 'debtors', id));
   };
 
   return (
@@ -134,7 +140,6 @@ export default function App() {
       </div>
 
       <div className="relative w-full max-w-3xl mx-auto px-4 py-8 sm:py-12 md:py-16">
-        
         {/* Header */}
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
