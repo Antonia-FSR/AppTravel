@@ -16,7 +16,8 @@ const app = initializeApp(firebaseConfig);
 
 // Usamos initializeFirestore con experimentalForceLongPolling para evitar errores de conexión
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
+  experimentalForceLongPolling: true,
+  ignoreUndefinedProperties: true 
 }, import.meta.env.VITE_FIREBASE_PROJECT_ID ? "(default)" : aiStudioConfig.firestoreDatabaseId);
 
 // NO QUITAR: Esto es necesario para el login anónimo
