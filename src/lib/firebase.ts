@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import aiStudioConfig from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -14,7 +14,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app, import.meta.env.VITE_FIREBASE_PROJECT_ID ? "(default)" : aiStudioConfig.firestoreDatabaseId);
+// Usamos initializeFirestore con experimentalForceLongPolling para evitar errores de conexión
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+}, import.meta.env.VITE_FIREBASE_PROJECT_ID ? "(default)" : aiStudioConfig.firestoreDatabaseId);
+
+// NO QUITAR: Esto es necesario para el login anónimo
 export const auth = getAuth(app);
 
 export const loginAnonymously = async () => {
