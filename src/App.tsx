@@ -60,7 +60,7 @@ export default function App() {
     await setDoc(doc(db, 'settings', 'global'), { goal: newGoal }, { merge: true });
   };
 
-  const handleAddTransaction = async (
+ const handleAddTransaction = async (
     type: 'income' | 'expense',
     amount: number,
     category: Category,
@@ -70,27 +70,37 @@ export default function App() {
     quantity?: number,
     quantityUnit?: 'Unidades' | 'Kilogramos'
   ) => {
-    const id = crypto.randomUUID();
-    const newTx: Transaction = {
-      id,
-      type,
-      amount,
-      category,
-      customCategory,
-      paymentMethod,
-      quantity,
-      quantityUnit,
-      note,
-      date: new Date().toISOString(),
-    };
-    await setDoc(doc(db, 'transactions', id), {
-      ...newTx,
-      createdAt: new Date().toISOString()
-    });
-  };
+    try {
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const newTx: any = {
+        id,
+        type,
+        amount,
+        category,
+        customCategory,
+        paymentMethod,
+        quantity,
+        quantityUnit,
+        note,
+        date: new Date().toISOString(),
+      };
+      
+      // Elimina los valores "undefined" para prevenir errores de Firestore
+      Object.keys(newTx).forEach(key => newTx[key] === undefined && delete newTx[key]);
 
+      await setDoc(doc(db, 'transactions', id), {
+        ...newTx,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error al guardar transacción:", error);
+      alert("Hubo un error al guardar la transacción. Revisa tu conexión a internet.");
+    }
+  };
   const handleUpdateTransaction = async (id: string, updatedTx: Partial<Transaction>) => {
-    await updateDoc(doc(db, 'transactions', id), updatedTx);
+    const safeUpdate = { ...updatedTx };
+    Object.keys(safeUpdate).forEach(key => (safeUpdate as any)[key] === undefined && delete (safeUpdate as any)[key]);
+    await updateDoc(doc(db, 'transactions', id), safeUpdate);
   };
 
   const handleDeleteTransaction = async (id: string) => {
@@ -122,7 +132,9 @@ export default function App() {
   };
 
   const handleUpdateDebtor = async (id: string, updatedDebtor: Partial<Debtor>) => {
-    await updateDoc(doc(db, 'debtors', id), updatedDebtor);
+    const safeUpdate = { ...updatedDebtor };
+    Object.keys(safeUpdate).forEach(key => (safeUpdate as any)[key] === undefined && delete (safeUpdate as any)[key]);
+    await updateDoc(doc(db, 'debtors', id), safeUpdate);
   };
 
   const handleDeleteDebtor = async (id: string) => {
