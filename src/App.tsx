@@ -165,7 +165,7 @@ export default function App() {
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 tracking-tight text-balance flex items-center justify-center flex-wrap gap-x-3">
             Fondo Viaje a 
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-600 flex items-center">
-              India <MapPin className="w-8 h-8 ml-1 text-rose-500 inline-block" />
+              ¿? <MapPin className="w-8 h-8 ml-1 text-rose-500 inline-block" />
             </span>
           </h1>
           <p className="mt-4 text-slate-500 max-w-md text-balance">
